@@ -1,0 +1,551 @@
+import React, { useState } from 'react';
+
+// --- Scale Definitions based on the provided images ---
+const rrScale = [36, 35, 30, 25, 20, 15, 10, 8, 5];
+const spo2Scale = [100, 95, 90, 85, 80];
+const bpScale = [220, 210, 200, 190, 180, 170, 160, 150, 140, 130, 120, 110, 100, 90, 80, 70, 60, 50, 40];
+const hrScale = [180, 170, 160, 150, 140, 130, 120, 110, 100, 90, 80, 70, 60, 50, 40];
+
+const neuroScale = [
+  { label: 'A = Alert', val: 'A' },
+  { label: 'V = Rouse by voice', val: 'V' },
+  { label: 'P = Rouse by pain', val: 'P' },
+  { label: 'U = Unresponsive', val: 'U' },
+];
+
+const gcsMotor = [
+  { label: 'Obeys Command', val: 6 },
+  { label: 'Localize Pain', val: 5 },
+  { label: 'Flexion Withdrawal', val: 4 },
+  { label: 'Flexion Abnormal', val: 3 },
+  { label: 'Extension', val: 2 },
+  { label: 'None', val: 1 },
+];
+
+const gcsVerbal = [
+  { label: 'Oriented X 3', val: 5 },
+  { label: 'Confused', val: 4 },
+  { label: 'Inappropriate Words', val: 3 },
+  { label: 'Incomprehensible', val: 2 },
+  { label: 'None', val: 1 },
+];
+
+const gcsEye = [
+  { label: 'Spontaneously', val: 4 },
+  { label: 'To Speech', val: 3 },
+  { label: 'To Pain', val: 2 },
+  { label: 'None', val: 1 },
+];
+
+export default function App() {
+  const [activeSide, setActiveSide] = useState('A');
+  const [gridData, setGridData] = useState({});
+  const [textData, setTextData] = useState({});
+
+  // Number of time columns on the sheet
+  const numCols = 14;
+
+  // Handlers for interactions
+  const handleGridClick = (section, rowValue, colIndex, type) => {
+    const key = `${section}-${rowValue}-${colIndex}`;
+    const current = gridData[key];
+    let next = null;
+
+    if (type === 'dot') {
+      next = current === '●' ? null : '●';
+    } else if (type === 'bp') {
+      // Cycle through Empty -> Systolic (V) -> Diastolic (Λ) -> Empty
+      if (!current) next = 'V';
+      else if (current === 'V') next = 'Λ';
+      else next = null;
+    }
+
+    setGridData((prev) => ({ ...prev, [key]: next }));
+  };
+
+  const handleTextChange = (section, colIndex, value) => {
+    setTextData((prev) => ({ ...prev, [`${section}-${colIndex}`]: value }));
+  };
+
+  const handleClearAll = () => {
+    if (confirm('Are you sure you want to clear all charting data?')) {
+      setGridData({});
+      setTextData({});
+    }
+  };
+
+  // Shared Render Helpers
+  const renderGridCols = (section, rowValue, type) => {
+    return Array.from({ length: numCols }).map((_, i) => (
+      <td
+        key={i}
+        className="border border-slate-700 text-center cursor-pointer hover:bg-blue-100 h-5 font-bold select-none text-[10px]"
+        onClick={() => handleGridClick(section, rowValue, i, type)}
+      >
+        {gridData[`${section}-${rowValue}-${i}`] || ''}
+      </td>
+    ));
+  };
+
+  const renderTextCols = (section, extraClasses = '') => {
+    return Array.from({ length: numCols }).map((_, i) => (
+      <td key={i} className={`border border-slate-700 p-0 h-5 ${extraClasses}`}>
+        <input
+          type="text"
+          className="w-full h-full text-center bg-transparent outline-none text-[10px] focus:bg-yellow-50"
+          value={textData[`${section}-${i}`] || ''}
+          onChange={(e) => handleTextChange(section, i, e.target.value)}
+        />
+      </td>
+    ));
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-200 p-4 font-sans flex flex-col items-center">
+      
+      {/* Educational Controls */}
+      <div className="bg-white p-4 rounded-lg shadow-md mb-6 w-full max-w-[1000px] flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">Vital Signs Charting Simulator</h2>
+          <p className="text-sm text-slate-600">
+            <strong>How to use:</strong> Click graph cells to plot markers. For BP, click multiple times to toggle between <strong>V</strong> (Systolic) and <strong>Λ</strong> (Diastolic). Type directly into empty text rows.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setActiveSide('A')}
+            className={`px-4 py-2 font-bold rounded shadow-sm border ${activeSide === 'A' ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'}`}
+          >
+            Side A (Vitals)
+          </button>
+          <button
+            onClick={() => setActiveSide('B')}
+            className={`px-4 py-2 font-bold rounded shadow-sm border ${activeSide === 'B' ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'}`}
+          >
+            Side B (Neuro & GCS)
+          </button>
+          <button
+            onClick={handleClearAll}
+            className="px-4 py-2 font-bold rounded shadow-sm border bg-red-100 text-red-700 border-red-300 hover:bg-red-200 ml-4"
+          >
+            Clear Chart
+          </button>
+        </div>
+      </div>
+
+      {/* Form Container */}
+      <div className="bg-white max-w-[1050px] w-full shadow-2xl overflow-x-auto border border-gray-300">
+        <div className="min-w-[900px] p-6 text-xs text-slate-900">
+          
+          {/* Form Header */}
+          <div className="flex justify-between items-start mb-4">
+            <div className="w-2/3">
+              <div className="flex items-center gap-2 font-bold text-xl mb-1">
+                <div className="flex items-center">
+                  <div className="w-4 h-8 bg-slate-800 relative">
+                    <div className="w-8 h-4 bg-slate-800 absolute top-2 -left-2"></div>
+                  </div>
+                </div>
+                <span className="ml-4 tracking-tight">Alberta Health Services</span>
+              </div>
+              <h1 className="font-bold text-2xl mt-2 mb-2">Adult Vital Signs Record</h1>
+              
+              <div className="border border-slate-800 p-1 mb-1 text-[11px] leading-tight flex items-center gap-2">
+                <div className="w-4 h-4 border border-black bg-white"></div>
+                <div>
+                  Acute changes in <strong className="text-red-600">RED</strong> call Physician/Nurse Practitioner <br/>
+                  <strong>and</strong> consider Response Team (if available)
+                </div>
+              </div>
+              <div className="border border-slate-800 p-1 mb-2 text-[11px] leading-tight flex items-center gap-2 border-t-0 border-dashed">
+                <div className="w-4 h-4 border border-black bg-white border-dashed"></div>
+                <div>Acute changes in <strong className="text-gray-500">GREY</strong> do Clinical Review</div>
+              </div>
+            </div>
+            
+            <div className="border-2 border-slate-800 w-72 h-24 flex items-center justify-center text-slate-500 bg-gray-50">
+              Affix patient label within this box
+            </div>
+          </div>
+
+          {/* Altered Calling Criteria */}
+          <div className="border-t border-l border-r border-slate-800 p-1 flex items-center gap-2 bg-slate-50">
+            <input type="checkbox" className="w-3 h-3" />
+            <span className="font-bold text-[11px]">Altered Calling Criteria</span> <span className="italic text-[10px]">(specify)</span>
+            <input type="text" className="flex-1 bg-transparent border-b border-gray-400 outline-none px-2 text-[10px]" />
+          </div>
+
+          {/* MAIN TABLE */}
+          <table className="w-full border-collapse border-2 border-slate-800 table-fixed">
+            <tbody>
+              
+              {/* === SIDE A RENDERING === */}
+              {activeSide === 'A' && (
+                <>
+                  {/* Date & Time */}
+                  <tr>
+                    <th colSpan={2} className="border border-slate-700 bg-gray-100 text-left px-1 font-bold text-[11px] w-32">
+                      Date <span className="font-normal italic text-[9px]">(Mon-dd)</span>
+                    </th>
+                    {renderTextCols('date')}
+                    <th className="border border-slate-700 bg-gray-100 w-6"></th>
+                  </tr>
+                  <tr>
+                    <th colSpan={2} className="border border-slate-700 bg-gray-100 text-left px-1 font-bold text-[11px]">
+                      Time <span className="font-normal italic text-[9px]">(hh:mm)</span>
+                    </th>
+                    {renderTextCols('time')}
+                    <th className="border border-slate-700 bg-gray-100"></th>
+                  </tr>
+
+                  {/* Respiratory Rate */}
+                  {rrScale.map((val, idx) => (
+                    <tr key={`rr-${val}`}>
+                      {idx === 0 && (
+                        <th rowSpan={rrScale.length} className="border border-slate-700 bg-gray-50 text-left px-1 align-top w-24 leading-tight">
+                          <div className="font-bold text-[11px]">Respiratory</div>
+                          <div className="font-bold text-[11px]">Rate ●</div>
+                        </th>
+                      )}
+                      <th className="border border-slate-700 bg-gray-50 w-6 text-[10px]">{val}</th>
+                      {renderGridCols('rr', val, 'dot')}
+                      <th className="border border-slate-700 bg-gray-50 w-6 text-[10px]">{val}</th>
+                    </tr>
+                  ))}
+
+                  {/* SpO2 */}
+                  {spo2Scale.map((val, idx) => (
+                    <tr key={`spo2-${val}`}>
+                      {idx === 0 && (
+                        <th rowSpan={spo2Scale.length} className="border border-slate-700 bg-gray-50 text-left px-1 align-top leading-tight pt-1">
+                          <div className="font-bold text-[11px]">SpO₂ % ●</div>
+                          <div className="text-[9px] mt-1 text-slate-600 leading-none">Call if O₂<br/>requirements<br/>increase</div>
+                        </th>
+                      )}
+                      <th className="border border-slate-700 bg-gray-50 text-[10px]">{val}</th>
+                      {renderGridCols('spo2', val, 'dot')}
+                      <th className="border border-slate-700 bg-gray-50 text-[10px]">{val}</th>
+                    </tr>
+                  ))}
+
+                  {/* O2 Lpm */}
+                  <tr>
+                    <th colSpan={2} className="border border-slate-700 bg-gray-100 text-center font-bold text-[11px]">
+                      O₂ Lpm
+                    </th>
+                    {renderTextCols('o2lpm')}
+                    <th className="border border-slate-700 bg-gray-100"></th>
+                  </tr>
+
+                  {/* Blood Pressure */}
+                  {bpScale.map((val, idx) => (
+                    <tr key={`bp-${val}`}>
+                      {idx === 0 && (
+                        <th rowSpan={bpScale.length} className="border border-slate-700 bg-gray-50 text-left px-1 align-top pt-1 relative leading-tight">
+                          <div className="font-bold text-[11px]">Blood</div>
+                          <div className="font-bold text-[11px] mb-2">Pressure</div>
+                          <div className="text-center font-bold text-sm my-1">V<br/>Λ</div>
+                          <div className="mt-2 text-[9px] text-slate-700 leading-none mb-3">Systolic BP<br/>is trigger for<br/>response</div>
+                          <div className="mt-1">
+                            <span className="underline text-[9px]">Location</span>
+                            <div className="text-[9px]">A = Artline</div>
+                            <div className="text-[9px]">N = NIBP</div>
+                          </div>
+                          <div className="mt-2">
+                            <span className="underline text-[9px]">Positions</span>
+                            <div className="text-[9px]">L = Lying</div>
+                            <div className="text-[9px]">S = Sit</div>
+                            <div className="text-[9px]">Std = Standing</div>
+                          </div>
+                        </th>
+                      )}
+                      <th className="border border-slate-700 bg-gray-50 text-[10px]">{val}</th>
+                      {renderGridCols('bp', val, 'bp')}
+                      <th className="border border-slate-700 bg-gray-50 text-[10px]">{val}</th>
+                    </tr>
+                  ))}
+
+                  {/* Location/Position BP */}
+                  <tr>
+                    <th colSpan={2} className="border border-slate-700 bg-gray-100 text-left px-1 font-normal text-[10px]">
+                      Location/Position
+                    </th>
+                    {renderTextCols('bpLoc')}
+                    <th className="border border-slate-700 bg-gray-100"></th>
+                  </tr>
+
+                  {/* Heart Rate */}
+                  {hrScale.map((val, idx) => (
+                    <tr key={`hr-${val}`}>
+                      {idx === 0 && (
+                        <th rowSpan={hrScale.length} className="border border-slate-700 bg-gray-50 text-left px-1 align-top pt-1 leading-tight flex flex-col justify-between h-full">
+                          <div>
+                            <div className="font-bold text-[11px]">Heart</div>
+                            <div className="font-bold text-[11px]">Rate ●</div>
+                          </div>
+                          <div className="mt-auto pb-1">
+                            <span className="underline text-[9px]">Location</span>
+                            <div className="text-[9px]">A = Apical</div>
+                            <div className="text-[9px]">R = Radial</div>
+                          </div>
+                        </th>
+                      )}
+                      <th className="border border-slate-700 bg-gray-50 text-[10px]">{val}</th>
+                      {renderGridCols('hr', val, 'dot')}
+                      <th className="border border-slate-700 bg-gray-50 text-[10px]">{val}</th>
+                    </tr>
+                  ))}
+
+                  {/* HR Location */}
+                  <tr>
+                    <th colSpan={2} className="border border-slate-700 bg-gray-100 text-center font-normal text-[10px]">
+                      Location
+                    </th>
+                    {renderTextCols('hrLoc')}
+                    <th className="border border-slate-700 bg-gray-100"></th>
+                  </tr>
+
+                  {/* Temperature */}
+                  <tr>
+                    <th colSpan={2} className="border border-slate-700 bg-gray-100 text-center font-bold text-[11px]">
+                      Temperature
+                    </th>
+                    {renderTextCols('temp')}
+                    <th className="border border-slate-700 bg-gray-100"></th>
+                  </tr>
+
+                  {/* Initials */}
+                  <tr>
+                    <th colSpan={2} className="border border-slate-700 bg-gray-100 text-center font-normal text-[10px]">
+                      Initials
+                    </th>
+                    {renderTextCols('initialsA')}
+                    <th className="border border-slate-700 bg-gray-100"></th>
+                  </tr>
+                </>
+              )}
+
+
+              {/* === SIDE B RENDERING === */}
+              {activeSide === 'B' && (
+                <>
+                  {/* Date & Time */}
+                  <tr>
+                    <th colSpan={3} className="border border-slate-700 bg-gray-100 text-left px-1 font-bold text-[11px] w-48">
+                      Date <span className="font-normal italic text-[9px]">(Mon-dd)</span>
+                    </th>
+                    {renderTextCols('dateB')}
+                  </tr>
+                  <tr>
+                    <th colSpan={3} className="border border-slate-700 bg-gray-100 text-left px-1 font-bold text-[11px]">
+                      Time <span className="font-normal italic text-[9px]">(hh:mm)</span>
+                    </th>
+                    {renderTextCols('timeB')}
+                  </tr>
+
+                  {/* Simple Text Rows */}
+                  <tr>
+                    <th colSpan={3} className="border border-slate-700 bg-gray-50 text-left px-1 font-bold text-[10px]">Pain Score <span className="font-normal">(0-10)</span></th>
+                    {renderTextCols('pain')}
+                  </tr>
+                  <tr>
+                    <th colSpan={3} className="border border-slate-700 bg-gray-50 text-left px-1 font-bold text-[10px]">Nausea Score <span className="font-normal">(0-10)</span></th>
+                    {renderTextCols('nausea')}
+                  </tr>
+                  <tr>
+                    <th colSpan={3} className="border border-slate-700 bg-gray-50 text-left px-1 font-bold text-[10px]">
+                      <span className="line-through text-gray-500 mr-2">Bowel Movements</span> Height
+                    </th>
+                    {renderTextCols('height')}
+                  </tr>
+                  <tr>
+                    <th colSpan={3} className="border border-slate-700 bg-gray-50 text-center px-1 font-bold text-[10px]">Weight <span className="font-normal">(kg)</span></th>
+                    {renderTextCols('weight')}
+                  </tr>
+
+                  {/* Disability Neurological Header */}
+                  <tr>
+                    <th className="border border-slate-700 bg-gray-100 text-left px-1 font-bold text-[11px] w-24">Disability Neurological</th>
+                    <th colSpan={numCols + 2} className="border border-slate-700 bg-gray-100 text-left px-2 font-normal text-[10px]">
+                      <div className="flex justify-between w-full max-w-[600px]">
+                        <span>If acute change in GREY = Clinical Review</span>
+                        <span>V = <strong>Consider</strong> GCS</span>
+                        <span>P or U = <strong>Conduct</strong> GCS</span>
+                      </div>
+                    </th>
+                  </tr>
+                  {/* Neuro Rows */}
+                  {neuroScale.map((item) => (
+                    <tr key={`neuro-${item.val}`}>
+                      <th colSpan={2} className="border border-slate-700 bg-gray-50 text-right pr-2 font-normal text-[10px] w-32">{item.label}</th>
+                      <th className="border border-slate-700 bg-gray-50 w-6 text-[10px]">{item.val}</th>
+                      {renderGridCols('neuro', item.val, 'dot')}
+                    </tr>
+                  ))}
+                  
+                  {/* Confusion */}
+                  <tr>
+                    <th colSpan={3} className="border border-slate-700 bg-gray-50 text-left px-1 text-[10px]">
+                      New onset of confusion <br/>
+                      Yes or No - if yes, conduct GCS
+                    </th>
+                    {renderTextCols('confusion')}
+                  </tr>
+
+                  {/* Pupils Header */}
+                  <tr>
+                    <th colSpan={3} className="border border-slate-700 bg-gray-100 text-left px-1 font-bold text-[11px]">
+                      <div className="flex items-center gap-2">
+                        <span>Pupil Size & Reaction</span>
+                        <div className="flex items-center gap-1 text-[9px] font-normal ml-2">
+                          <span>• 1 mm</span>
+                          <span className="text-[12px]">●</span> <span>2 mm</span>
+                          <span className="text-[14px]">●</span> <span>3 mm</span>
+                          <span className="text-[16px]">●</span> <span>4 mm</span>
+                          <span className="text-[18px]">●</span> <span>5 mm</span>
+                          <span className="text-[20px]">●</span> <span>6 mm</span>
+                        </div>
+                        <div className="text-[9px] font-normal ml-auto leading-tight">
+                          N = Normal <br/> S = Sluggish
+                        </div>
+                        <div className="text-[9px] font-normal ml-4 leading-tight">
+                          F = Fixed <br/> UTA = Unable to Assess
+                        </div>
+                      </div>
+                    </th>
+                    {/* Blank headers above the grid for this spacer row */}
+                    {Array.from({ length: numCols }).map((_, i) => <td key={i} className="border border-slate-700 bg-gray-100 h-6"></td>)}
+                  </tr>
+                  
+                  {/* Pupil Rows */}
+                  <tr>
+                    <th rowSpan={2} className="border border-slate-700 bg-gray-50 text-[10px] w-6" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Right</th>
+                    <th colSpan={2} className="border border-slate-700 bg-gray-50 text-center text-[10px] font-normal">Right Size</th>
+                    {renderTextCols('rSize')}
+                  </tr>
+                  <tr>
+                    <th colSpan={2} className="border border-slate-700 bg-gray-50 text-center text-[10px] font-normal">Right Reaction</th>
+                    {renderTextCols('rRx')}
+                  </tr>
+                  <tr>
+                    <th rowSpan={2} className="border border-slate-700 bg-gray-50 text-[10px] w-6" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Left</th>
+                    <th colSpan={2} className="border border-slate-700 bg-gray-50 text-center text-[10px] font-normal">Left Size</th>
+                    {renderTextCols('lSize')}
+                  </tr>
+                  <tr>
+                    <th colSpan={2} className="border border-slate-700 bg-gray-50 text-center text-[10px] font-normal">Left Reaction</th>
+                    {renderTextCols('lRx')}
+                  </tr>
+
+                  {/* Motor Response Header */}
+                  <tr>
+                    <th className="border border-slate-700 bg-gray-100 text-left px-1 font-bold text-[11px]">Motor Response</th>
+                    <th colSpan={numCols + 2} className="border border-slate-700 bg-gray-100 text-left px-2 font-normal text-[9px] leading-tight">
+                      <div className="flex justify-between w-full max-w-[700px]">
+                        <span>If ↓ = Clinical Review</span>
+                        <span>S = Strong<br/>AF = Abnormal Flexion</span>
+                        <span>M = Moderate<br/>AE = Abnormal Extension</span>
+                        <span>W = Weak<br/>SP = Spontaneous</span>
+                        <span>A = Absent<br/>Wd = Withdrawal</span>
+                      </div>
+                    </th>
+                  </tr>
+                  
+                  {/* Motor Rows */}
+                  <tr>
+                    <th rowSpan={2} className="border border-slate-700 bg-gray-50 text-[10px]" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Arm</th>
+                    <th colSpan={2} className="border border-slate-700 bg-gray-50 text-center text-[10px] font-normal">Right Arm</th>
+                    {renderTextCols('ra')}
+                  </tr>
+                  <tr>
+                    <th colSpan={2} className="border border-slate-700 bg-gray-50 text-center text-[10px] font-normal">Left Arm</th>
+                    {renderTextCols('la')}
+                  </tr>
+                  <tr>
+                    <th rowSpan={2} className="border border-slate-700 bg-gray-50 text-[10px]" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Leg</th>
+                    <th colSpan={2} className="border border-slate-700 bg-gray-50 text-center text-[10px] font-normal">Right Leg</th>
+                    {renderTextCols('rl')}
+                  </tr>
+                  <tr>
+                    <th colSpan={2} className="border border-slate-700 bg-gray-50 text-center text-[10px] font-normal">Left Leg</th>
+                    {renderTextCols('ll')}
+                  </tr>
+
+                  {/* GCS Header */}
+                  <tr>
+                    <th colSpan={3} className="border border-slate-700 bg-gray-100 text-left px-1 font-bold text-[11px]">
+                      Glasgow Coma Scale <span className="font-normal text-[10px] ml-2">If ↓ by 2 points or more = call <strong>Response Team</strong> (if available)</span>
+                    </th>
+                    {Array.from({ length: numCols }).map((_, i) => <td key={i} className="border border-slate-700 bg-gray-100 h-6"></td>)}
+                  </tr>
+
+                  {/* GCS Motor */}
+                  {gcsMotor.map((item, idx) => (
+                    <tr key={`gcsm-${item.val}`}>
+                      {idx === 0 && (
+                        <th rowSpan={gcsMotor.length} className="border border-slate-700 bg-gray-50 text-[10px]" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+                          Best Motor Response
+                        </th>
+                      )}
+                      <th className="border border-slate-700 bg-gray-50 text-right pr-2 text-[10px] font-normal w-32">{item.label}</th>
+                      <th className="border border-slate-700 bg-gray-50 text-[10px] w-6">{item.val}</th>
+                      {renderGridCols('gcsm', item.val, 'dot')}
+                    </tr>
+                  ))}
+
+                  {/* GCS Verbal */}
+                  {gcsVerbal.map((item, idx) => (
+                    <tr key={`gcsv-${item.val}`}>
+                      {idx === 0 && (
+                        <th rowSpan={gcsVerbal.length} className="border border-slate-700 bg-gray-50 text-[10px]" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+                          Best Verbal
+                        </th>
+                      )}
+                      <th className="border border-slate-700 bg-gray-50 text-right pr-2 text-[10px] font-normal">{item.label}</th>
+                      <th className="border border-slate-700 bg-gray-50 text-[10px]">{item.val}</th>
+                      {renderGridCols('gcsv', item.val, 'dot')}
+                    </tr>
+                  ))}
+
+                  {/* GCS Eye */}
+                  {gcsEye.map((item, idx) => (
+                    <tr key={`gcse-${item.val}`}>
+                      {idx === 0 && (
+                        <th rowSpan={gcsEye.length} className="border border-slate-700 bg-gray-50 text-[10px]" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+                          Eye Opening
+                        </th>
+                      )}
+                      <th className="border border-slate-700 bg-gray-50 text-right pr-2 text-[10px] font-normal">{item.label}</th>
+                      <th className="border border-slate-700 bg-gray-50 text-[10px]">{item.val}</th>
+                      {renderGridCols('gcse', item.val, 'dot')}
+                    </tr>
+                  ))}
+
+                  {/* GCS Score & Initials */}
+                  <tr>
+                    <th colSpan={3} className="border border-slate-700 bg-gray-50 text-right pr-2 font-bold text-[10px]">GCS Score</th>
+                    {renderTextCols('gcsScore')}
+                  </tr>
+                  <tr>
+                    <th colSpan={3} className="border border-slate-700 bg-gray-50 text-right pr-2 font-normal text-[10px]">Initials</th>
+                    {renderTextCols('initialsB')}
+                  </tr>
+
+                </>
+              )}
+
+            </tbody>
+          </table>
+
+          {/* Form Footer */}
+          <div className="flex justify-between items-center mt-2 text-[10px] text-gray-500">
+            <span>19537(Rev2015-05)</span>
+            <span className="text-black font-bold text-[11px]">Please fill both sides of form</span>
+            <span>{activeSide === 'A' ? 'Side A' : 'Side B'}</span>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
